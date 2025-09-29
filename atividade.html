@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Covid View</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-6">
+                <!-- Content for the left half -->
+                <h2>Search query</h2>
+                <p>Buscar top 10 países com maior % de vacinação:</p>
+                <button id="btn_vac" class="btn btn-primary">Buscar</button>
+            </div>
+            <div class="col-md-6">
+                <!-- Content for the right half -->
+                <h2>Results</h2>
+                <div id="resultados">
+                    Aguardando resultado
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script>
+        document.getElementById("btn_vac").addEventListener("click", Execute);
+
+        const dados = {};
+
+        function Execute(){
+            const area = document.getElementById("resultados");
+            //fetch("https://disease.sh/v3/covid-19/vaccine/coverage/countries?lastdays=1&fullData=true")
+            fetch("https://restcountries.com/v3.1/all?fields=name,languages,population")
+                .then(res => res.json())
+                .then(data => {
+                    for (let country of data){
+                        valores = {};
+                        valores["populacao"] = country.population;
+                        linguas = Object.values(country.languages);
+                        valores["linguas"] = linguas.map(l => l.toUpperCase());
+                        dados[country.name.common.toUpperCase()] = valores;
+                    }
+                });
+            fetch("https://disease.sh/v3/covid-19/vaccine/coverage/countries?lastdays=1&fullData=true")
+                .then(res => res.json())
+                .then(data => {
+                    for (let country in data) {
+                        nome = data[country].country.toUpperCase();
+                        if (nome in dados){
+                            vacinas = Object.values(data[country].timeline)[0];
+                            dados[nome]["vacinas"] = vacinas;
+                            dados[nome]["percentual_vacina"] = (vacinas / dados[nome]["populacao"]) * 100;
+                        }
+                    }
+                });
+            area.innerHTML = "<pre>" + JSON.stringify(dados, null, 2) + "</pre>";
+        }
+    </script>
+</body>
+</html>
