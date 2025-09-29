@@ -10,56 +10,111 @@
 
     <div class="container-fluid">
         <div class="row">
+
             <div class="col-md-6">
-                <!-- Content for the left half -->
+                <!-- CONTEÚDO ESQUERDA -->
                 <h2>Search query</h2>
                 <p>Buscar top 10 países com maior % de vacinação:</p>
-                <button id="btn_vac" class="btn btn-primary">Buscar</button>
+                <button id="btn_vac" class="btn btn-primary mb-3">Buscar</button>
+                
+                <div id="ordenacao-controls" style="display: none;">
+                    <h3 class="mt-4">Ordenação</h3>
+                    <p>Escolha a ordem de exibição:</p>
+                    <div class="btn-group" role="group">
+                        <button id="btn_crescente" class="btn btn-success">Crescente</button>
+                        <button id="btn_decrescente" class="btn btn-warning">Decrescente</button>
+                    </div>
+                </div>
             </div>
+            
             <div class="col-md-6">
-                <!-- Content for the right half -->
+                <!-- CONTEÚDO DIREITA -->
                 <h2>Results</h2>
                 <div id="resultados">
                     Aguardando resultado
                 </div>
             </div>
+
         </div>
     </div>
 
-    
-
     <script>
         document.getElementById("btn_vac").addEventListener("click", Execute);
+        document.getElementById("btn_crescente").addEventListener("click", () => ordenarDados("crescente"));
+        document.getElementById("btn_decrescente").addEventListener("click", () => ordenarDados("decrescente"));
 
         const dados = {};
+        let dadosOrdenados = {};
 
         function Execute(){
             const area = document.getElementById("resultados");
-            //fetch("https://disease.sh/v3/covid-19/vaccine/coverage/countries?lastdays=1&fullData=true")
+            area.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+
             fetch("https://restcountries.com/v3.1/all?fields=name,languages,population")
                 .then(res => res.json())
                 .then(data => {
                     for (let country of data){
-                        valores = {};
+                        let valores = {};
                         valores["populacao"] = country.population;
-                        linguas = Object.values(country.languages);
+                        let linguas = Object.values(country.languages || {});
                         valores["linguas"] = linguas.map(l => l.toUpperCase());
                         dados[country.name.common.toUpperCase()] = valores;
                     }
+
+                    fetch("https://disease.sh/v3/covid-19/vaccine/coverage/countries?lastdays=1&fullData=true")
+                        .then(res => res.json())
+                        .then(data => {
+                            for (let country in data) {
+                                let nome = data[country].country.toUpperCase();
+                                if (nome in dados){
+                                    let vacinas = Object.values(data[country].)[0];
+                                    dados[nome]["vacinas"] = vacinas;
+                                    dados[nome]["percentual_vacina"] = (vacinas / dados[nome]["populacao"]) * 100;
+                                }
+                            }
+                            
+                            document.getElementById("ordenacao-controls").style.display = "block";
+
+                            ordenarDados("decrescente");
+                        });
                 });
-            fetch("https://disease.sh/v3/covid-19/vaccine/coverage/countries?lastdays=1&fullData=true")
-                .then(res => res.json())
-                .then(data => {
-                    for (let country in data) {
-                        nome = data[country].country.toUpperCase();
-                        if (nome in dados){
-                            vacinas = Object.values(data[country].timeline)[0];
-                            dados[nome]["vacinas"] = vacinas;
-                            dados[nome]["percentual_vacina"] = (vacinas / dados[nome]["populacao"]) * 100;
-                        }
-                    }
-                });
-            area.innerHTML = "<pre>" + JSON.stringify(dados, null, 2) + "</pre>";
+        }
+
+        function ordenarDados(ordem) {
+            const paisesComVacina = Object.entries(dados)
+                .filter(([pais, info]) => info.percentual_vacina !== undefined);
+
+            if (ordem === "crescente") {
+                paisesComVacina.sort((a, b) => a[1].percentual_vacina - b[1].percentual_vacina);
+            } else {
+                paisesComVacina.sort((a, b) => b[1].percentual_vacina - a[1].percentual_vacina);
+            }
+            const top10 = paisesComVacina.slice(0, 10);
+
+            exibirResultados(top10, ordem);
+        }
+
+        function exibirResultados(paisesOrdenados, ordem) {
+            const area = document.getElementById("resultados");
+            area.innerHTML = `<h4 class="mb-3">Top 10 - Ordem ${ordem === "crescente" ? "Crescente" : "Decrescente"}</h4><div class="row" id="cards-row"></div>`;
+            const cardsRow = document.getElementById("cards-row");
+
+            for (let [pais, info] of paisesOrdenados) {
+                const card = document.createElement("div");
+                card.className = "col-md-6 mb-4 d-flex align-items-stretch";
+                card.innerHTML = `
+                    <div class="card shadow h-100 border-primary">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">${pais}</h5>
+                            <p class="card-text"><strong>Vacinas:</strong> ${info.vacinas ? info.vacinas.toLocaleString() : "N/A"}</p>
+                            <p class="card-text"><strong>População:</strong> ${info.populacao ? info.populacao.toLocaleString() : "N/A"}</p>
+                            <p class="card-text"><strong>Línguas:</strong> ${info.linguas && info.linguas.length > 0 ? info.linguas.join(", ") : "N/A"}</p>
+                            <p class="card-text"><strong>% Vacinação:</strong> <span class="badge bg-success">${info.percentual_vacina ? info.percentual_vacina.toFixed(2) + "%" : "N/A"}</span></p>
+                        </div>
+                    </div>
+                `;
+                cardsRow.appendChild(card);
+            }
         }
     </script>
 </body>
