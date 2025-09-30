@@ -8,11 +8,22 @@
 </head>
 <body>
 
+    <nav class="navbar navbar-expand-lg" style="background-color: rgb(240, 128, 128);">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Covid Viewer</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            </div>
+        </div>
+    </nav>
+
     <div class="container-fluid">
         <div class="row">
 
+            <!-- CONTEÚDO ESQUERDA -->
             <div class="col-md-6">
-                <!-- CONTEÚDO ESQUERDA -->
                 <h2>Search query</h2>
                 <p>Buscar top 10 países com maior % de vacinação:</p>
                 <button id="btn_vac" class="btn btn-primary mb-3">Buscar</button>
@@ -27,8 +38,8 @@
                 </div>
             </div>
             
+            <!-- CONTEÚDO DIREITA -->
             <div class="col-md-6">
-                <!-- CONTEÚDO DIREITA -->
                 <h2>Results</h2>
                 <div id="resultados">
                     Aguardando resultado
@@ -101,13 +112,15 @@
             area.innerHTML = `<h4 class="mb-3">Top 10 - Ordem ${ordem === "crescente" ? "Crescente" : "Decrescente"}</h4><div class="row" id="cards-row"></div>`;
             const cardsRow = document.getElementById("cards-row");
 
+            let position = 1;
+
             for (let [pais, info] of paisesOrdenados) {
                 const card = document.createElement("div");
-                card.className = "col-md-6 mb-4 d-flex align-items-stretch";
+                card.className = "mb-4 col-md-7 align-items-stretch";
                 card.innerHTML = `
                     <div class="card shadow h-100 border-primary">
-                        <div class="card-body">
-                            <h5 class="card-title text-primary">${pais}</h5>
+                        <div class="card-body" d-flex flex-column align-items-center>
+                            <h5 class="card-title text-primary">#${position} ${pais}</h5>
                             <p class="card-text"><strong>Vacinas:</strong> ${info.vacinas ? info.vacinas.toLocaleString() : "N/A"}</p>
                             <p class="card-text"><strong>População:</strong> ${info.populacao ? info.populacao.toLocaleString() : "N/A"}</p>
                             <p class="card-text"><strong>Línguas:</strong> ${info.linguas && info.linguas.length > 0 ? info.linguas.join(", ") : "N/A"}</p>
@@ -116,6 +129,7 @@
                     </div>
                 `;
                 cardsRow.appendChild(card);
+                position++;
             }
         }
     </script>
