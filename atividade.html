@@ -1,48 +1,89 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Covid View</title>
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Ícones do Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        /* Estilo para garantir que todos os cards tenham a mesma altura em uma linha */
+        .row-eq-height {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .card {
+            height: 100%;
+        }
+    </style>
 </head>
-<body>
+<body class="bg-light">
 
-    <nav class="navbar navbar-expand-lg" style="background-color: rgb(240, 128, 128);">
+    <!-- BARRA DE NAVEGAÇÃO -->
+    <nav class="navbar navbar-expand-lg bg-danger-subtle shadow-sm">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">Covid Viewer</a>
+            <a class="navbar-brand fw-bold" href="#">
+                <i class="bi bi-shield-virus"></i>
+                Covid Viewer
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
+                <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
             </div>
         </div>
     </nav>
 
-    <div class="container-fluid">
+    <!-- CONTEÚDO PRINCIPAL -->
+    <div class="container-fluid p-4">
         <div class="row">
 
             <!-- CONTEÚDO ESQUERDA -->
-            <div class="col-md-6">
-                <h2>Search query</h2>
-                <p>Buscar top 10 países com maior % de vacinação:</p>
-                <button id="btn_vac" class="btn btn-primary mb-3">Buscar</button>
-                
-                <div id="ordenacao-controls" style="display: none;">
-                    <h3 class="mt-4">Ordenação</h3>
-                    <p>Escolha a ordem de exibição:</p>
-                    <div class="btn-group" role="group">
-                        <button id="btn_crescente" class="btn btn-success">Crescente</button>
-                        <button id="btn_decrescente" class="btn btn-warning">Decrescente</button>
+            <div class="col-lg-4 mb-4">
+                <div class="card shadow">
+                    <div class="card-body p-4">
+                        <h2 class="card-title mb-3"><i class="bi bi-search"></i> Painel de Busca</h2>
+                        <div class="mb-4">
+                            <p class="mb-2">Buscar top 10 países com maior % de vacinação (com base na população):</p>
+                            <button id="btn_vac" class="btn btn-primary w-100">
+                                <i class="bi bi-play-circle-fill"></i> Buscar dados de vacinação
+                            </button>
+                        </div>
+                        <div class="mb-4">
+                            <p class="mb-2">Buscar top 10 países com maior % de mortes por Covid (com base na população):</p>
+                            <button id="btn_death" class="btn btn-danger w-100">
+                                <i class="bi bi-play-circle-fill"></i> Buscar dados de mortes
+                            </button>
+                        </div>
+                        
+                        <div id="ordenacao-controls" style="display: none;">
+                            <hr>
+                            <h3 class="mt-4 fs-5">Opções de Ordenação</h3>
+                            <p>Escolha a ordem de exibição dos resultados:</p>
+                            <div class="d-grid gap-2" role="group">
+                                <button id="btn_decrescente" class="btn btn-success">
+                                    <i class="bi bi-sort-down"></i> Maior % primeiro (Padrão)
+                                </button>
+                                <button id="btn_crescente" class="btn btn-warning">
+                                    <i class="bi bi-sort-up"></i> Menor % primeiro
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             
             <!-- CONTEÚDO DIREITA -->
-            <div class="col-md-6">
-                <h2>Results</h2>
-                <div id="resultados">
-                    Aguardando resultado
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-body p-4">
+                         <h2 class="card-title mb-4"><i class="bi bi-bar-chart-line"></i> Resultados</h2>
+                         <div id="resultados" class="text-center text-muted">
+                            <p>Aguardando busca para exibir os resultados...</p>
+                         </div>
+                    </div>
                 </div>
             </div>
 
@@ -50,88 +91,296 @@
     </div>
 
     <script>
-        document.getElementById("btn_vac").addEventListener("click", Execute);
-        document.getElementById("btn_crescente").addEventListener("click", () => ordenarDados("crescente"));
-        document.getElementById("btn_decrescente").addEventListener("click", () => ordenarDados("decrescente"));
+    document.getElementById("btn_vac").addEventListener("click", GetVaccineStats);
+    document.getElementById("btn_death").addEventListener("click", GetDeathStats);
+    document.getElementById("btn_crescente").addEventListener("click", () => ordenarDados("crescente"));
+    document.getElementById("btn_decrescente").addEventListener("click", () => ordenarDados("decrescente"));
 
-        const dados = {};
-        let dadosOrdenados = {};
-        let temp;
+    loading = document.createElement("loading");
+    loading.innerHTML = `
+        <div class="d-flex justify-content-center align-items-center p-5">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="ms-3 fs-5">Buscando dados...</span>
+        </div>`;
 
-        function Execute(){
-            const area = document.getElementById("resultados");
-            area.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+    const deathStats = {};
+    let tmp = null;
+    let deathDataLoaded = false;
 
-            fetch("https://restcountries.com/v3.1/all?fields=name,languages,population")
-                .then(res => res.json())
-                .then(data => {
-                    for (let country of data){
-                        let valores = {};
-                        valores["populacao"] = country.population;
-                        let linguas = Object.values(country.languages || {});
-                        valores["linguas"] = linguas.map(l => l.toUpperCase());
-                        dados[country.name.common.toUpperCase()] = valores;
-                    }
+    function GetDeathStats() {
+        const area = document.getElementById("resultados");
+        area.innerHTML = loading.innerHTML;
+        if (deathDataLoaded) {
+            document.getElementById("ordenacao-controls").style.display = "block";
+            ordenarDadosMortes("decrescente");
+            return;
+        }
 
-                    fetch("https://disease.sh/v3/covid-19/vaccine/coverage/countries?lastdays=1&fullData=true")
-                        .then(res => res.json())
-                        .then(data => {
-                            temp=data;
-                            for (let item in data) {
-                                let country = data[item].country.toUpperCase();
-                                if (country in dados){
-                                    let vacinas = data[item].timeline[0].total;
-                                    dados[country]["vacinas"] = vacinas;
-                                    dados[country]["percentual_vacina"] = (vacinas / dados[country]["populacao"]) * 100;
+        // Busca países e populações
+        fetch("https://restcountries.com/v3.1/all?fields=name,languages,population")
+            .then(res => res.json())
+            .then(countryData => {
+                // Cria um mapa de nomes alternativos para facilitar o match
+                const countryMap = {};
+                for (let country of countryData) {
+                    let valores = {};
+                    valores["populacao"] = country.population;
+                    let linguas = Object.values(country.languages || {});
+                    valores["linguas"] = linguas.map(l => l.toUpperCase());
+                    // Salva pelo nome comum e pelo nome oficial
+                    countryMap[country.name.common.toUpperCase()] = valores;
+                    if (country.name.official)
+                        countryMap[country.name.official.toUpperCase()] = valores;
+                }
+
+                // Busca dados de mortes
+                return fetch("https://disease.sh/v3/covid-19/countries")
+                    .then(res => res.json())
+                    .then(deathData => {
+                        for (let item of deathData) {
+                            let countryName = item.country.toUpperCase();
+                            // Tenta encontrar o país pelo nome comum ou oficial
+                            let valores = countryMap[countryName];
+                            if (!valores && item.countryInfo && item.countryInfo.iso2) {
+                                // Tenta pelo código ISO2
+                                for (let key in countryMap) {
+                                    if (key.includes(item.countryInfo.iso2)) {
+                                        valores = countryMap[key];
+                                        break;
+                                    }
                                 }
                             }
-                            
-                            document.getElementById("ordenacao-controls").style.display = "block";
+                            if (valores && valores["populacao"] > 0) {
+                                let mortes = item.deaths;
+                                valores["mortes"] = mortes;
+                                valores["percentual_mortes"] = (mortes / valores["populacao"]) * 100;
+                                deathStats[countryName] = valores;
+                            }
+                        }
+                        deathDataLoaded = true;
+                        document.getElementById("ordenacao-controls").style.display = "block";
+                        ordenarDadosMortes("decrescente");
+                    });
+            })
+            .catch(error => {
+                area.innerHTML = `<div class="alert alert-danger"><strong>Erro ao buscar dados:</strong> ${error.message}</div>`;
+            });
+    }
 
-                            ordenarDados("decrescente");
-                        });
-                });
+    const vaccStats = {};
+    let vaccDataLoaded = false;
+    let modoAgrupamento = "paises";
+
+    function GetVaccineStats() {
+        const area = document.getElementById("resultados");
+        area.innerHTML = loading.innerHTML;
+        
+        if (vaccDataLoaded) {
+            document.getElementById("ordenacao-controls").style.display = "block";
+            ordenarDados("decrescente");
+            return;
         }
+        
+        fetch("https://restcountries.com/v3.1/all?fields=name,languages,population")
+            .then(res => res.json())
+            .then(countryData => {
+                for (let country of countryData) {
+                    let valores = {};
+                    valores["populacao"] = country.population;
+                    let linguas = Object.values(country.languages || {});
+                    valores["linguas"] = linguas.map(l => l.toUpperCase());
+                    vaccStats[country.name.common.toUpperCase()] = valores;
+                }
 
-        function ordenarDados(ordem) {
-            const paisesComVacina = Object.entries(dados)
-                .filter(([pais, info]) => info.percentual_vacina !== undefined);
+                return fetch("https://disease.sh/v3/covid-19/vaccine/coverage/countries?lastdays=1&fullData=true");
+            })
+            .then(res => res.json())
+            .then(vaccineData => {
+                for (let item of vaccineData) {
+                    let countryName = item.country.toUpperCase();
+                    if (countryName in vaccStats) {
+                        let vacinas = item.timeline[0].total;
+                        vaccStats[countryName]["vacinas"] = vacinas;
+                        vaccStats[countryName]["percentual_vacina"] = (vacinas / vaccStats[countryName]["populacao"]) * 100;
+                    }
+                }
+                
+                vaccDataLoaded = true;
+                document.getElementById("ordenacao-controls").style.display = "block";
+                adicionarBotaoAgrupamento(); // adiciona o botão de alternar
+                ordenarDados("decrescente");
+            })
+            .catch(error => {
+                area.innerHTML = `<div class="alert alert-danger"><strong>Erro ao buscar dados:</strong> ${error.message}</div>`;
+            });
+    }
+
+    function adicionarBotaoAgrupamento() {
+        let controls = document.getElementById("ordenacao-controls");
+        let btnToggle = document.createElement("button");
+        btnToggle.id = "btn_toggle";
+        btnToggle.className = "btn btn-secondary mt-3";
+        btnToggle.innerHTML = '<i class="bi bi-arrow-left-right"></i> Agrupar por Línguas';
+        btnToggle.addEventListener("click", () => {
+            if (modoAgrupamento === "paises") {
+                modoAgrupamento = "linguas";
+                btnToggle.innerHTML = '<i class="bi bi-arrow-left-right"></i> Agrupar por Países';
+            } else {
+                modoAgrupamento = "paises";
+                btnToggle.innerHTML = '<i class="bi bi-arrow-left-right"></i> Agrupar por Línguas';
+            }
+            ordenarDados("decrescente");
+        });
+        controls.appendChild(btnToggle);
+    }
+
+    function ordenarDados(ordem) {
+        let dadosOrdenados = [];
+
+        if (modoAgrupamento === "paises") {
+            dadosOrdenados = Object.entries(vaccStats)
+                .filter(([pais, info]) => info.percentual_vacina !== undefined && info.percentual_vacina > 0);
 
             if (ordem === "crescente") {
-                paisesComVacina.sort((a, b) => a[1].percentual_vacina - b[1].percentual_vacina);
+                dadosOrdenados.sort((a, b) => a[1].percentual_vacina - b[1].percentual_vacina);
             } else {
-                paisesComVacina.sort((a, b) => b[1].percentual_vacina - a[1].percentual_vacina);
+                dadosOrdenados.sort((a, b) => b[1].percentual_vacina - a[1].percentual_vacina);
             }
-            const top10 = paisesComVacina.slice(0, 10);
 
-            exibirResultados(top10, ordem);
+        } else { // agrupamento por línguas
+            let linguasStats = {};
+
+            for (let [pais, info] of Object.entries(vaccStats)) {
+                if (info.percentual_vacina !== undefined && info.vacinas) {
+                    for (let lingua of info.linguas) {
+                        if (!linguasStats[lingua]) {
+                            linguasStats[lingua] = { populacao: 0, vacinas: 0, paises: [] };
+                        }
+                        linguasStats[lingua].populacao += info.populacao;
+                        linguasStats[lingua].vacinas += info.vacinas;
+                        linguasStats[lingua].paises.push(pais);
+                    }
+                }
+            }
+
+            for (let [lingua, dados] of Object.entries(linguasStats)) {
+                dados.percentual_vacina = (dados.vacinas / dados.populacao) * 100;
+                dadosOrdenados.push([lingua, dados]);
+            }
+
+            if (ordem === "crescente") {
+                dadosOrdenados.sort((a, b) => a[1].percentual_vacina - b[1].percentual_vacina);
+            } else {
+                dadosOrdenados.sort((a, b) => b[1].percentual_vacina - a[1].percentual_vacina);
+            }
         }
 
-        function exibirResultados(paisesOrdenados, ordem) {
-            const area = document.getElementById("resultados");
-            area.innerHTML = `<h4 class="mb-3">Top 10 - Ordem ${ordem === "crescente" ? "Crescente" : "Decrescente"}</h4><div class="row" id="cards-row"></div>`;
-            const cardsRow = document.getElementById("cards-row");
+        const top10 = dadosOrdenados.slice(0, 10);
+        exibirResultados(top10, ordem);
+    }
 
-            let position = 1;
+    function exibirResultados(listaOrdenada, ordem) {
+        const area = document.getElementById("resultados");
+        const ordemTexto = ordem === "crescente" ? "Crescente (Menor para Maior)" : "Decrescente (Maior para Menor)";
+        let titulo = (modoAgrupamento === "paises") ? "Top 10 Países por Vacinação" : "Top 10 Línguas por Vacinação";
 
-            for (let [pais, info] of paisesOrdenados) {
-                const card = document.createElement("div");
-                card.className = "mb-4 col-md-7 align-items-stretch";
+        area.innerHTML = `<h4 class="mb-3 text-start">${titulo}</h4><p class="text-muted text-start">Ordem: ${ordemTexto}</p><div class="row row-eq-height"></div>`;
+        const cardsRow = area.querySelector(".row");
+        
+        if (listaOrdenada.length === 0) {
+            cardsRow.innerHTML = "<p>Nenhum dado encontrado.</p>";
+            return;
+        }
+
+        listaOrdenada.forEach(([chave, info], index) => {
+            const card = document.createElement("div");
+            card.className = "col-xl-6 mb-4";
+            
+            if (modoAgrupamento === "paises") {
                 card.innerHTML = `
-                    <div class="card shadow h-100 border-primary">
-                        <div class="card-body" d-flex flex-column align-items-center>
-                            <h5 class="card-title text-primary">#${position} ${pais}</h5>
-                            <p class="card-text"><strong>Vacinas:</strong> ${info.vacinas ? info.vacinas.toLocaleString() : "N/A"}</p>
-                            <p class="card-text"><strong>População:</strong> ${info.populacao ? info.populacao.toLocaleString() : "N/A"}</p>
-                            <p class="card-text"><strong>Línguas:</strong> ${info.linguas && info.linguas.length > 0 ? info.linguas.join(", ") : "N/A"}</p>
-                            <p class="card-text"><strong>% Vacinação:</strong> <span class="badge bg-success">${info.percentual_vacina ? info.percentual_vacina.toFixed(2) + "%" : "N/A"}</span></p>
+                    <div class="card border-light-subtle shadow-sm">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title text-primary fw-bold">#${index + 1} ${chave}</h5>
+                            <hr>
+                            <p><i class="bi bi-people-fill text-muted"></i> <strong>População:</strong> ${info.populacao.toLocaleString('pt-BR')}</p>
+                            <p><i class="bi bi-translate text-muted"></i> <strong>Línguas:</strong> ${info.linguas.join(", ")}</p>
+                            <p><i class="bi bi-journal-medical text-muted"></i> <strong>Doses Aplicadas:</strong> ${info.vacinas.toLocaleString('pt-BR')}</p>
+                            <div class="mt-auto">
+                                <p class="fs-5"><strong>Percentual:</strong> <span class="badge bg-success p-2">${info.percentual_vacina.toFixed(2)}%</span></p>
+                            </div>
+                        </div>
+                    </div>`;
+            } else {
+                card.innerHTML = `
+                    <div class="card border-light-subtle shadow-sm">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title text-primary fw-bold">#${index + 1} ${chave}</h5>
+                            <hr>
+                            <p><i class="bi bi-people-fill text-muted"></i> <strong>População Total:</strong> ${info.populacao.toLocaleString('pt-BR')}</p>
+                            <p><i class="bi bi-journal-medical text-muted"></i> <strong>Doses Aplicadas:</strong> ${info.vacinas.toLocaleString('pt-BR')}</p>
+                            <p><i class="bi bi-flag text-muted"></i> <strong>Países com esta língua:</strong> ${info.paises.join(", ")}</p>
+                            <div class="mt-auto">
+                                <p class="fs-5"><strong>Percentual:</strong> <span class="badge bg-info p-2">${info.percentual_vacina.toFixed(2)}%</span></p>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            cardsRow.appendChild(card);
+        });
+    }
+
+    // Adicione esta função para ordenar e exibir os dados de mortes
+    function ordenarDadosMortes(ordem) {
+        let dadosOrdenados = Object.entries(deathStats)
+            .filter(([pais, info]) => info.percentual_mortes !== undefined && info.percentual_mortes > 0);
+
+        if (ordem === "crescente") {
+            dadosOrdenados.sort((a, b) => a[1].percentual_mortes - b[1].percentual_mortes);
+        } else {
+            dadosOrdenados.sort((a, b) => b[1].percentual_mortes - a[1].percentual_mortes);
+        }
+
+        const top10 = dadosOrdenados.slice(0, 10);
+        exibirResultadosMortes(top10, ordem);
+    }
+
+    // Adicione esta função para exibir os resultados de mortes
+    function exibirResultadosMortes(listaOrdenada, ordem) {
+        const area = document.getElementById("resultados");
+        const ordemTexto = ordem === "crescente" ? "Crescente (Menor para Maior)" : "Decrescente (Maior para Menor)";
+        let titulo = "Top 10 Países por Mortalidade Covid";
+
+        area.innerHTML = `<h4 class="mb-3 text-start">${titulo}</h4><p class="text-muted text-start">Ordem: ${ordemTexto}</p><div class="row row-eq-height"></div>`;
+        const cardsRow = area.querySelector(".row");
+
+        if (listaOrdenada.length === 0) {
+            cardsRow.innerHTML = "<p>Nenhum dado encontrado.</p>";
+            return;
+        }
+
+        listaOrdenada.forEach(([chave, info], index) => {
+            const card = document.createElement("div");
+            card.className = "col-xl-6 mb-4";
+            card.innerHTML = `
+                <div class="card border-light-subtle shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title text-danger fw-bold">#${index + 1} ${chave}</h5>
+                        <hr>
+                        <p><i class="bi bi-people-fill text-muted"></i> <strong>População:</strong> ${info.populacao.toLocaleString('pt-BR')}</p>
+                        <p><i class="bi bi-translate text-muted"></i> <strong>Línguas:</strong> ${info.linguas.join(", ")}</p>
+                        <p><i class="bi bi-person-x-fill text-muted"></i> <strong>Mortes:</strong> ${info.mortes.toLocaleString('pt-BR')}</p>
+                        <div class="mt-auto">
+                            <p class="fs-5"><strong>Percentual:</strong> <span class="badge bg-danger p-2">${info.percentual_mortes.toFixed(4)}%</span></p>
                         </div>
                     </div>
-                `;
-                cardsRow.appendChild(card);
-                position++;
-            }
-        }
-    </script>
+                </div>`;
+            cardsRow.appendChild(card);
+        });
+    }
+</script>
+
 </body>
 </html>
